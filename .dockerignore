@@ -1,0 +1,25 @@
+# Git and GitHub
+.git
+.gitignore
+.github
+
+# Development configuration
+docker-compose.yml
+.env
+.env.example
+README.md
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Local cache/data volumes
+hf-cache/
+.cache/
+db-m2-data/
