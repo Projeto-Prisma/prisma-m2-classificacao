@@ -1,0 +1,60 @@
+# docker-compose do M2 para desenvolvimento ISOLADO.
+#
+# Sobe o M2 com o RabbitMQ e o banco que ele precisa. No compose GERAL do projeto,
+# o RabbitMQ é compartilhado entre todos os módulos — aqui ele vem junto só para
+# você conseguir rodar e testar o M2 sozinho.
+#
+#   docker compose up --build         # sobe tudo
+#   docker compose up --scale m2=3    # 3 réplicas do M2 (competing consumers)
+#
+# Painel do RabbitMQ: http://localhost:15672  (guest/guest)
+# Swagger do M2:      http://localhost:8000/docs
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # painel web
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  db-m2:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: m2
+      POSTGRES_PASSWORD: m2
+      POSTGRES_DB: m2
+    ports:
+      - "5433:5432"     # 5433 no host p/ não colidir com outros bancos do projeto
+    volumes:
+      - db-m2-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U m2"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  m2:
+    build: .
+    environment:
+      M2_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      M2_DATABASE_URL: postgresql+asyncpg://m2:m2@db-m2:5432/m2
+      M2_LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persiste o modelo de embeddings baixado (~470 MB) entre reinícios.
+      - hf-cache:/cache/huggingface
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db-m2:
+        condition: service_healthy
+
+volumes:
+  db-m2-data:
+  hf-cache:
