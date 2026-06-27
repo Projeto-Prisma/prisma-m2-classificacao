@@ -51,7 +51,9 @@ async def _relay_pendentes(mensageria: Mensageria) -> None:
         try:
             payload = DenunciaClassificada(
                 id=den.id,
+                assunto_usuario=den.assunto_usuario,
                 categoria=den.categoria,
+                divergencia=den.divergencia,
                 area_responsavel=den.area_responsavel,
                 confianca=den.confianca,
                 certeza=den.certeza,

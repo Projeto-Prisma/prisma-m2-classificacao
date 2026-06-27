@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from . import repository
-from .areas import area_responsavel
+from .areas import AREA_DEFAULT
 from .classifier import Classificador
 from .db import SessionLocal
 from .messaging import Mensageria
@@ -43,7 +43,7 @@ async def classificar_denuncia(
         resultado["categoria"] = None if resultado["revisar"] else resultado["top3"][0]["categoria"]
         resultado["certeza"] = Classificador._nivel_certeza(conf, resultado["revisar"])
 
-    resultado["area_responsavel"] = area_responsavel(resultado["categoria"])
+    resultado["area_responsavel"] = resultado["categoria"] or AREA_DEFAULT
     return resultado
 
 

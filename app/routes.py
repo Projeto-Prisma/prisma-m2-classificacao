@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import repository
-from .areas import area_responsavel, areas_disponiveis
+from .areas import areas_disponiveis
 from .classifier import Classificador
 from .db import get_session
 from .processing import classificar_denuncia
@@ -129,7 +129,3 @@ async def stats(session: AsyncSession = Depends(get_session)):
     }
 
 
-@router.get("/areas/{categoria}", tags=["classificação"])
-async def area_da_categoria(categoria: str):
-    """Mostra em qual área temática uma categoria cai (útil p/ conferir o mapa)."""
-    return {"categoria": categoria, "area_responsavel": area_responsavel(categoria)}
