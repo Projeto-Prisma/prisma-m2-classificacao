@@ -90,6 +90,7 @@ class TestDenunciaClassificada:
             id="d1",
             assunto_usuario="Poluição",
             categoria="Poluição",
+            categoria_sugerida="Poluição",
             divergencia=False,
             area_responsavel="Meio Ambiente e Sustentabilidade",
             confianca=0.85,

@@ -47,8 +47,9 @@ class DenunciaClassificada(BaseModel):
 
     id: str
     assunto_usuario: str | None        # categoria escolhida pelo cidadão (repasse do evento de entrada)
-    categoria: str | None              # None quando revisar=True
-    divergencia: bool                  # True quando assunto_usuario != categoria
+    categoria: str | None              # None quando revisar=True (confiança abaixo do limiar)
+    categoria_sugerida: str | None     # top-1 da IA independente do limiar; permite ver a sugestão mesmo quando revisar=True
+    divergencia: bool                  # True quando assunto_usuario != categoria_sugerida
     area_responsavel: str
     confianca: float = Field(ge=0, le=1)
     certeza: str                       # 'Alta' | 'Média' | 'Baixa'
@@ -73,6 +74,7 @@ class ClassificarRequest(BaseModel):
 
 class ClassificacaoResponse(BaseModel):
     categoria: str | None
+    categoria_sugerida: str | None  # top-1 do modelo independente do limiar
     area_responsavel: str
     confianca: float
     certeza: str
@@ -87,6 +89,7 @@ class DenunciaArmazenada(BaseModel):
     texto: str
     assunto_usuario: str | None
     categoria: str | None
+    categoria_sugerida: str | None
     divergencia: bool
     area_responsavel: str
     confianca: float

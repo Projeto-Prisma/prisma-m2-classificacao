@@ -18,6 +18,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from . import repository
 from .classifier import Classificador
@@ -53,6 +54,7 @@ async def _relay_pendentes(mensageria: Mensageria) -> None:
                 id=den.id,
                 assunto_usuario=den.assunto_usuario,
                 categoria=den.categoria,
+                categoria_sugerida=den.categoria_sugerida,
                 divergencia=den.divergencia,
                 area_responsavel=den.area_responsavel,
                 confianca=den.confianca,
@@ -134,6 +136,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=cfg.app_nome, version="1.0.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 app.include_router(router)
 
 

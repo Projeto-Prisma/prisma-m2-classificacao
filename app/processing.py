@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from . import repository
-from .areas import AREA_DEFAULT
+from .areas import AREA_DEFAULT, area_responsavel
 from .classifier import Classificador
 from .db import SessionLocal
 from .messaging import Mensageria
@@ -43,7 +43,7 @@ async def classificar_denuncia(
         resultado["categoria"] = None if resultado["revisar"] else resultado["top3"][0]["categoria"]
         resultado["certeza"] = Classificador._nivel_certeza(conf, resultado["revisar"])
 
-    resultado["area_responsavel"] = resultado["categoria"] or AREA_DEFAULT
+    resultado["area_responsavel"] = area_responsavel(resultado["categoria"])
     return resultado
 
 
@@ -52,15 +52,19 @@ def montar_evento(
 ) -> DenunciaClassificada:
     """Monta o payload do evento `denuncia.classificada`."""
     categoria_modelo = resultado["categoria"]
+    # top-1 da IA independente do limiar — sempre disponível em top3[0]
+    categoria_sugerida = resultado["top3"][0]["categoria"] if resultado.get("top3") else None
+    # compara com categoria_sugerida para detectar divergência mesmo quando revisar=True
     divergencia = (
         denuncia.assunto_usuario is not None
-        and categoria_modelo is not None
-        and denuncia.assunto_usuario != categoria_modelo
+        and categoria_sugerida is not None
+        and denuncia.assunto_usuario != categoria_sugerida
     )
     return DenunciaClassificada(
         id=denuncia.id,
         assunto_usuario=denuncia.assunto_usuario,
         categoria=categoria_modelo,
+        categoria_sugerida=categoria_sugerida,
         divergencia=divergencia,
         area_responsavel=resultado["area_responsavel"],
         confianca=resultado["confianca"],
@@ -99,6 +103,7 @@ def fazer_handler(classificador: Classificador, mensageria: Mensageria):
                     "texto": denuncia.texto,
                     "assunto_usuario": evento.assunto_usuario,
                     "categoria": evento.categoria,
+                    "categoria_sugerida": evento.categoria_sugerida,
                     "divergencia": evento.divergencia,
                     "area_responsavel": evento.area_responsavel,
                     "confianca": evento.confianca,

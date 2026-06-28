@@ -84,8 +84,10 @@ async def info(clf: Classificador = Depends(get_classificador)):
 async def classificar(req: ClassificarRequest, clf: Classificador = Depends(get_classificador)):
     """Classifica um texto na hora, sem mensageria nem persistência. Útil p/ testar."""
     resultado = await classificar_denuncia(req.texto, clf, limiar=req.limiar)
+    categoria_sugerida = resultado["top3"][0]["categoria"] if resultado.get("top3") else None
     return ClassificacaoResponse(
         categoria=resultado["categoria"],
+        categoria_sugerida=categoria_sugerida,
         area_responsavel=resultado["area_responsavel"],
         confianca=resultado["confianca"],
         certeza=resultado["certeza"],
@@ -99,10 +101,11 @@ async def listar_denuncias(
     limite: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     apenas_revisar: bool = Query(False),
+    texto: str | None = Query(None, description="Filtra pelo texto exato da denúncia"),
     session: AsyncSession = Depends(get_session),
 ):
     """Lista as denúncias já classificadas (mais recentes primeiro)."""
-    return await repository.listar(session, limite, offset, apenas_revisar)
+    return await repository.listar(session, limite, offset, apenas_revisar, texto)
 
 
 @router.get("/denuncias/{denuncia_id}", response_model=DenunciaArmazenada, tags=["consulta"])

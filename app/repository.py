@@ -23,7 +23,7 @@ async def upsert_classificacao(session: AsyncSession, dados: dict) -> None:
     atualizaveis = {
         c: stmt.excluded[c]
         for c in (
-            "texto", "assunto_usuario", "categoria", "divergencia",
+            "texto", "assunto_usuario", "categoria", "categoria_sugerida", "divergencia",
             "area_responsavel", "confianca", "certeza", "revisar",
             "top3", "modelo_embeddings", "recebido_em", "classificado_em",
             "localizacao",
@@ -69,10 +69,13 @@ async def listar(
     limite: int = 50,
     offset: int = 0,
     apenas_revisar: bool = False,
+    texto: str | None = None,
 ) -> list[DenunciaClassificadaDB]:
     q = select(DenunciaClassificadaDB).order_by(DenunciaClassificadaDB.classificado_em.desc())
     if apenas_revisar:
         q = q.where(DenunciaClassificadaDB.revisar.is_(True))
+    if texto is not None:
+        q = q.where(DenunciaClassificadaDB.texto == texto)
     q = q.limit(limite).offset(offset)
     return list((await session.execute(q)).scalars().all())
 

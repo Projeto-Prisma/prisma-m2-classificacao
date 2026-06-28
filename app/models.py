@@ -31,6 +31,7 @@ class DenunciaClassificadaDB(Base):
     texto: Mapped[str] = mapped_column(Text, nullable=False)
     assunto_usuario: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     categoria: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    categoria_sugerida: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     divergencia: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     area_responsavel: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     confianca: Mapped[float] = mapped_column(Float, nullable=False)
