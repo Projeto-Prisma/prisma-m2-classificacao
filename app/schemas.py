@@ -106,3 +106,8 @@ class DenunciaArmazenada(BaseModel):
 class ContagemCategoria(BaseModel):
     chave: str
     total: int
+
+
+class RevisarRequest(BaseModel):
+    """Corpo do POST /denuncias/{id}/revisar — decisão humana sobre o assunto final."""
+    categoria_final: str = Field(min_length=1)

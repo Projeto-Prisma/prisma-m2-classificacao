@@ -51,3 +51,9 @@ class DenunciaClassificadaDB(Base):
     publicado: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false", index=True
     )
+    # Gate de revisão humana: True enquanto um humano ainda não confirmou o assunto.
+    # O relay do outbox ignora registros com aguardando_revisao=True para não publicar
+    # automaticamente denúncias que precisam de decisão humana antes de seguir pipeline.
+    aguardando_revisao: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false", index=True
+    )

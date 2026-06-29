@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .models import DenunciaClassificadaDB
 
 
+
 async def upsert_classificacao(session: AsyncSession, dados: dict) -> None:
     """Insere a classificação; se o `id` já existir, atualiza (idempotente).
 
@@ -26,7 +27,7 @@ async def upsert_classificacao(session: AsyncSession, dados: dict) -> None:
             "texto", "assunto_usuario", "categoria", "categoria_sugerida", "divergencia",
             "area_responsavel", "confianca", "certeza", "revisar",
             "top3", "modelo_embeddings", "recebido_em", "classificado_em",
-            "localizacao",
+            "localizacao", "aguardando_revisao",
             # "publicado" intencionalmente ausente: não resetar para False
             # se a denúncia já foi publicada com sucesso em entrega anterior.
         )
@@ -50,14 +51,39 @@ async def marcar_publicado(session: AsyncSession, denuncia_id: str) -> None:
 async def listar_nao_publicados(
     session: AsyncSession, limite: int = 100
 ) -> list[DenunciaClassificadaDB]:
-    """Retorna registros gravados mas ainda não publicados no broker."""
+    """Retorna registros gravados mas ainda não publicados no broker.
+
+    Exclui denúncias aguardando revisão humana: o relay não deve publicá-las
+    automaticamente — elas só saem quando um humano chamar POST /denuncias/{id}/revisar.
+    """
     q = (
         select(DenunciaClassificadaDB)
         .where(DenunciaClassificadaDB.publicado.is_(False))
+        .where(DenunciaClassificadaDB.aguardando_revisao.is_(False))
         .order_by(DenunciaClassificadaDB.classificado_em.asc())
         .limit(limite)
     )
     return list((await session.execute(q)).scalars().all())
+
+
+async def marcar_revisado(
+    session: AsyncSession, denuncia_id: str, categoria_final: str, area_final: str
+) -> None:
+    """Aplica decisão humana: define a categoria final e libera o gate de publicação."""
+    stmt = (
+        update(DenunciaClassificadaDB)
+        .where(DenunciaClassificadaDB.id == denuncia_id)
+        .values(
+            categoria=categoria_final,
+            categoria_sugerida=categoria_final,
+            divergencia=False,
+            revisar=False,
+            aguardando_revisao=False,
+            area_responsavel=area_final,
+        )
+    )
+    await session.execute(stmt)
+    await session.commit()
 
 
 async def buscar_por_id(session: AsyncSession, denuncia_id: str) -> DenunciaClassificadaDB | None:
@@ -86,7 +112,7 @@ async def contar_total(session: AsyncSession) -> int:
 
 async def contar_para_revisar(session: AsyncSession) -> int:
     q = select(func.count()).select_from(DenunciaClassificadaDB).where(
-        DenunciaClassificadaDB.revisar.is_(True)
+        DenunciaClassificadaDB.aguardando_revisao.is_(True)
     )
     return (await session.execute(q)).scalar_one()
 

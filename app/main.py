@@ -112,14 +112,10 @@ async def lifespan(app: FastAPI):
     mensageria = Mensageria(cfg)
     app.state.mensageria = mensageria
     task_relay: asyncio.Task | None = None
-    try:
-        await mensageria.conectar()
-        await mensageria.consumir(fazer_handler(classificador, mensageria))
-        task_relay = asyncio.create_task(_loop_relay(mensageria))
-        logger.info("Consumindo %s — M2 no ar. Relay outbox ativo (%ds).", cfg.routing_in, _RELAY_INTERVALO)
-    except Exception as e:
-        # Sobe a API mesmo sem broker (ex.: dev sem RabbitMQ); só loga o aviso.
-        logger.warning("Não conectou ao RabbitMQ (API segue de pé): %s", e)
+    await mensageria.conectar()
+    await mensageria.consumir(fazer_handler(classificador, mensageria))
+    task_relay = asyncio.create_task(_loop_relay(mensageria))
+    logger.info("Consumindo %s — M2 no ar. Relay outbox ativo (%ds).", cfg.routing_in, _RELAY_INTERVALO)
 
     yield
 

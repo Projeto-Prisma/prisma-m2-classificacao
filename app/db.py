@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -29,6 +30,13 @@ async def criar_tabelas() -> None:
     """Cria as tabelas se ainda não existirem (em produção, prefira migrações)."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Adiciona coluna se a tabela já existia antes desta versão (idempotente)
+        await conn.execute(
+            text(
+                "ALTER TABLE denuncias_classificadas "
+                "ADD COLUMN IF NOT EXISTS aguardando_revisao BOOLEAN NOT NULL DEFAULT false"
+            )
+        )
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

@@ -95,6 +95,7 @@ def fazer_handler(classificador: Classificador, mensageria: Mensageria):
         evento = montar_evento(denuncia, resultado, classificador.modelo_embeddings)
 
         # 3) grava no banco (outbox: publicado=False até o broker confirmar)
+        aguardando = evento.divergencia or evento.revisar
         async with SessionLocal() as session:
             await repository.upsert_classificacao(
                 session,
@@ -115,8 +116,19 @@ def fazer_handler(classificador: Classificador, mensageria: Mensageria):
                     "classificado_em": evento.classificado_em,
                     "localizacao": denuncia.localizacao,
                     "publicado": False,
+                    "aguardando_revisao": aguardando,
                 },
             )
+
+        # Gate de revisão humana: divergência ou baixa confiança bloqueiam a publicação.
+        # O relay do outbox também ignora esses registros (aguardando_revisao=True).
+        # A publicação só ocorre quando POST /denuncias/{id}/revisar for chamado.
+        if aguardando:
+            logger.info(
+                "denuncia %s aguardando revisão humana (divergencia=%s, revisar=%s) — não publicada ainda",
+                evento.id, evento.divergencia, evento.revisar,
+            )
+            return
 
         # 4) publica denuncia.classificada (p/ M3, M4, M7)
         # Se falhar: não re-raise — a mensagem é ACKed e o registro fica com

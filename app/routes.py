@@ -9,12 +9,14 @@ não daqui — mas estes endpoints ajudam na demo e na depuração.
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from . import repository
-from .areas import areas_disponiveis
+from .areas import area_responsavel, areas_disponiveis
 from .classifier import Classificador
 from .db import get_session
 from .processing import classificar_denuncia
@@ -23,7 +25,11 @@ from .schemas import (
     ClassificarRequest,
     ContagemCategoria,
     DenunciaArmazenada,
+    DenunciaClassificada,
+    RevisarRequest,
 )
+
+logger = logging.getLogger("m2.routes")
 
 router = APIRouter()
 
@@ -114,6 +120,62 @@ async def obter_denuncia(denuncia_id: str, session: AsyncSession = Depends(get_s
     if den is None:
         raise HTTPException(status_code=404, detail="Denúncia não encontrada")
     return den
+
+
+@router.post("/denuncias/{denuncia_id}/revisar", tags=["revisão"])
+async def revisar_denuncia(
+    denuncia_id: str,
+    body: RevisarRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Aplica decisão humana sobre uma denúncia aguardando revisão.
+
+    Atualiza a categoria, libera o gate e publica denuncia.classificada no broker
+    para que M3 → M5 → M6 processem a partir daqui.
+    Retorna 404 se a denúncia não existir; 409 se não estava aguardando revisão.
+    """
+    den = await repository.buscar_por_id(session, denuncia_id)
+    if den is None:
+        raise HTTPException(status_code=404, detail="Denúncia não encontrada")
+    if not den.aguardando_revisao:
+        raise HTTPException(status_code=409, detail="Denúncia não está aguardando revisão humana")
+
+    area_final = area_responsavel(body.categoria_final)
+    await repository.marcar_revisado(session, denuncia_id, body.categoria_final, area_final)
+
+    den = await repository.buscar_por_id(session, denuncia_id)
+
+    mensageria = getattr(request.app.state, "mensageria", None)
+    publicado = False
+    if mensageria and mensageria.conectado:
+        try:
+            payload = DenunciaClassificada(
+                id=den.id,
+                assunto_usuario=den.assunto_usuario,
+                categoria=den.categoria,
+                categoria_sugerida=den.categoria_sugerida,
+                divergencia=den.divergencia,
+                area_responsavel=den.area_responsavel,
+                confianca=den.confianca,
+                certeza=den.certeza,
+                revisar=den.revisar,
+                top3=den.top3,
+                localizacao=den.localizacao,
+                modelo_embeddings=den.modelo_embeddings,
+                recebido_em=den.recebido_em,
+                classificado_em=den.classificado_em,
+            )
+            await mensageria.publicar(payload.model_dump(mode="json"))
+            await repository.marcar_publicado(session, denuncia_id)
+            publicado = True
+            logger.info("denuncia %s revisada e publicada (categoria=%s)", denuncia_id, body.categoria_final)
+        except Exception as e:
+            logger.error("Falha ao publicar revisão de %s: %s", denuncia_id, e)
+    else:
+        logger.warning("denuncia %s revisada mas broker indisponível — publicação pendente", denuncia_id)
+
+    return {"ok": True, "publicado": publicado}
 
 
 @router.get("/stats", tags=["consulta"])
